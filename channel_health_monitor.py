@@ -26,11 +26,17 @@ class ChannelHealthMonitor:
         self.channels = {}  # channelId -> name
 
     def load_channels(self):
-        """Load all channels from PhenixRTS API"""
+        """Load all channels from PhenixRTS API and sort them alphabetically by name"""
         try:
             ch_list = self.phenix.get_channels()
-            self.channels = {ch.get("channelId"): ch.get("name", "No name") for ch in ch_list}
-            console.print(f"[bold green]✓ Loaded {len(self.channels)} channel(s)[/]")
+            
+            # Create dictionary and sort by channel name (alphabetically)
+            self.channels = {
+                ch.get("channelId"): ch.get("name", "No name") 
+                for ch in sorted(ch_list, key=lambda x: x.get("name", "No name").lower())
+            }
+            
+            console.print(f"[bold green]✓ Loaded and sorted {len(self.channels)} channel(s) alphabetically[/]")
             return True
         except Exception as e:
             console.print(f"[bold red]✗ Error loading channels: {e}[/]")
@@ -48,10 +54,11 @@ class ChannelHealthMonitor:
             while True:
                 table = Table(title=f"Channel Health - {time.strftime('%H:%M:%S')}", 
                              box=box.ROUNDED, show_lines=True)
-                table.add_column("Channel", style="cyan")
-                table.add_column("Publishers", justify="center")
-                table.add_column("Source Status", justify="center")
+                table.add_column("Channel", style="cyan", min_width=40)
+                table.add_column("Publishers", justify="center", width=12)
+                table.add_column("Source Status", justify="center", width=20)
 
+                # Display channels (already sorted alphabetically)
                 for channel_id, name in self.channels.items():
                     try:
                         count = self.phenix.get_publishers_count(channel_id)
@@ -72,7 +79,7 @@ class ChannelHealthMonitor:
 
 if __name__ == "__main__":
     try:
-        monitor = ChannelHealthMonitor(interval_seconds=1)   # ← Now 1 second
+        monitor = ChannelHealthMonitor(interval_seconds=1)
         monitor.run()
     except KeyboardInterrupt:
         console.print("\n[bold yellow]👋 Monitor stopped by user.[/]")
