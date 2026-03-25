@@ -13,7 +13,7 @@ load_dotenv()
 console = Console()
 
 class ChannelHealthMonitor:
-    def __init__(self, interval_seconds: int = 8):
+    def __init__(self, interval_seconds: int = 1):
         app_id = os.getenv('PHENIXRTS_APP_ID')
         password = os.getenv('PHENIXRTS_PASSWORD')
 
@@ -65,14 +65,14 @@ class ChannelHealthMonitor:
                     except Exception as e:
                         table.add_row(name, "[red]ERROR[/]", f"[red]{e}[/]")
 
-                live.update(Panel(table, title="PhenixRTS Live Monitor", border_style="blue"))
+                live.update(Panel(table, title="PhenixRTS Live Monitor (1s refresh)", border_style="blue"))
 
                 time.sleep(self.interval)
 
 
 if __name__ == "__main__":
     try:
-        monitor = ChannelHealthMonitor(interval_seconds=8)
+        monitor = ChannelHealthMonitor(interval_seconds=1)   # ← Now 1 second
         monitor.run()
     except KeyboardInterrupt:
         console.print("\n[bold yellow]👋 Monitor stopped by user.[/]")
