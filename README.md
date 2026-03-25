@@ -21,6 +21,7 @@ A clean, fast and modern terminal tool to monitor the health of your PhenixRTS l
 ## Installation
 
 1. Clone the repository:
+
    ```bash
    git clone https://github.com/marcusmarcal/RTS-SO-Toolbox.git
    cd RTS-SO-Toolbox
@@ -28,11 +29,7 @@ A clean, fast and modern terminal tool to monitor the health of your PhenixRTS l
 
    ```
 
----
-
-### Parte 2/3 – Copie esta segunda parte (Usage + Project Structure)
-
-````markdown
+`````markdown
 ## Usage
 
 Start the monitor:
@@ -42,8 +39,6 @@ python channel_health_monitor.py
 
 
 ---
-
-### Parte 3/3 – Copie esta última parte (Version History + Notes + License)
 
 ```markdown
 ## Version History
@@ -70,4 +65,8 @@ MIT License
 
 Made for reliable live streaming monitoring
 ````
-````
+`````
+
+```
+
+```
