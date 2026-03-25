@@ -1,11 +1,6 @@
 import os
+from dotenv import load_dotenv
 
-def get_env_variable(var_name):
-    """Get the value of an environment variable"""
-    try:
-        return os.environ[var_name]
-    except KeyError:
-        raise RuntimeError(f'Environment variable {var_name} not found')
+load_dotenv()  # Load environment variables from .env file
 
-# Example usage:
-# database_url = get_env_variable('DATABASE_URL')
+# Existing configurations can go below this line...
