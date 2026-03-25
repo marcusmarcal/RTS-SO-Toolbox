@@ -18,7 +18,7 @@ class ChannelHealthMonitor:
         password = os.getenv('PHENIXRTS_PASSWORD')
 
         if not app_id or not password:
-            console.print("[bold red]❌ PHENIXRTS_APP_ID e PHENIXRTS_PASSWORD não encontrados no .env[/]")
+            console.print("[bold red]❌ PHENIXRTS_APP_ID and PHENIXRTS_PASSWORD not found in .env[/]")
             raise SystemExit(1)
 
         self.phenix = PhenixRTS(app_id, password)
@@ -26,13 +26,14 @@ class ChannelHealthMonitor:
         self.channels = {}  # channelId -> name
 
     def load_channels(self):
+        """Load all channels from PhenixRTS API"""
         try:
             ch_list = self.phenix.get_channels()
-            self.channels = {ch.get("channelId"): ch.get("name", "Sem nome") for ch in ch_list}
-            console.print(f"[bold green]✓ Carregados {len(self.channels)} canal(is)[/]")
+            self.channels = {ch.get("channelId"): ch.get("name", "No name") for ch in ch_list}
+            console.print(f"[bold green]✓ Loaded {len(self.channels)} channel(s)[/]")
             return True
         except Exception as e:
-            console.print(f"[bold red]✗ Erro ao carregar canais: {e}[/]")
+            console.print(f"[bold red]✗ Error loading channels: {e}[/]")
             return False
 
     def run(self):
@@ -40,31 +41,31 @@ class ChannelHealthMonitor:
             return
 
         console.clear()
-        console.print(Panel("[bold cyan]PhenixRTS - Monitor de Saúde em Tempo Real[/]", 
+        console.print(Panel("[bold cyan]PhenixRTS - Real-Time Channel Health Monitor[/]", 
                            style="bold blue", box=box.ROUNDED))
 
         with Live(console=console, refresh_per_second=4, screen=True) as live:
             while True:
-                table = Table(title=f"Saúde dos Canais - {time.strftime('%H:%M:%S')}", 
+                table = Table(title=f"Channel Health - {time.strftime('%H:%M:%S')}", 
                              box=box.ROUNDED, show_lines=True)
-                table.add_column("Canal", style="cyan")
+                table.add_column("Channel", style="cyan")
                 table.add_column("Publishers", justify="center")
-                table.add_column("Status Source", justify="center")
+                table.add_column("Source Status", justify="center")
 
                 for channel_id, name in self.channels.items():
                     try:
                         count = self.phenix.get_publishers_count(channel_id)
                         has_source = count > 0
 
-                        status_text = "[bold green]✓ SOURCE ATIVA[/]" if has_source else "[bold red]✗ SEM SOURCE[/]"
+                        status_text = "[bold green]✓ SOURCE ACTIVE[/]" if has_source else "[bold red]✗ NO SOURCE[/]"
                         count_text = f"[bold green]{count}[/]" if has_source else f"[bold red]{count}[/]"
 
                         table.add_row(name, count_text, status_text)
 
                     except Exception as e:
-                        table.add_row(name, "[red]ERRO[/]", f"[red]{e}[/]")
+                        table.add_row(name, "[red]ERROR[/]", f"[red]{e}[/]")
 
-                live.update(Panel(table, title="Monitor PhenixRTS", border_style="blue"))
+                live.update(Panel(table, title="PhenixRTS Live Monitor", border_style="blue"))
 
                 time.sleep(self.interval)
 
@@ -74,6 +75,6 @@ if __name__ == "__main__":
         monitor = ChannelHealthMonitor(interval_seconds=8)
         monitor.run()
     except KeyboardInterrupt:
-        console.print("\n[bold yellow]👋 Monitor encerrado pelo usuário.[/]")
+        console.print("\n[bold yellow]👋 Monitor stopped by user.[/]")
     except Exception as e:
-        console.print(f"[bold red]Erro fatal: {e}[/]")
+        console.print(f"[bold red]Fatal error: {e}[/]")

@@ -4,7 +4,7 @@ from urllib.parse import quote
 
 class PhenixRTS:
     """
-    PhenixRTS API client usando Basic Authentication.
+    PhenixRTS API client using Basic Authentication.
     """
 
     def __init__(self, app_id: str, password: str, base_url: str = 'https://pcast.phenixrts.com'):
@@ -15,6 +15,7 @@ class PhenixRTS:
         self._setup_auth()
 
     def _setup_auth(self):
+        """Setup Basic Authentication headers"""
         credentials = f"{self.app_id}:{self.password}"
         encoded_credentials = base64.b64encode(credentials.encode()).decode()
         self.session.headers.update({
@@ -24,7 +25,7 @@ class PhenixRTS:
         })
 
     def get_channels(self):
-        """Retorna todos os canais da conta"""
+        """Return all channels from the account"""
         try:
             response = self.session.get(f'{self.base_url}/pcast/channels')
             response.raise_for_status()
@@ -38,8 +39,8 @@ class PhenixRTS:
 
     def get_publishers_count(self, channel_id: str):
         """
-        Verifica número de publishers (ingests/sources).
-        Retorna um número inteiro (0 ou mais).
+        Check number of publishers (ingests/sources) for a channel.
+        Returns an integer (0 or more).
         """
         encoded_id = quote(channel_id)
         endpoint = f'pcast/channel/{encoded_id}/publishers/count'
@@ -48,7 +49,6 @@ class PhenixRTS:
             response = self.session.get(f'{self.base_url}/{endpoint}')
             
             if response.status_code == 200:
-                # Phenix retorna apenas o número como texto ou int
                 text = response.text.strip()
                 try:
                     return int(text)
