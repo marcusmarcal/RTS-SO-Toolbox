@@ -6,7 +6,7 @@ from main import PhenixRTS
 
 load_dotenv()
 
-VERSION = "1.3.0"
+VERSION = "1.4.0"
 
 class ChannelHealthMonitor:
     def __init__(self, interval_seconds: int = 5):
@@ -18,10 +18,11 @@ class ChannelHealthMonitor:
 
         self.phenix = PhenixRTS(app_id, password)
         self.interval = interval_seconds
-        self.channels = {}  # channelId -> name
+        self.channels = {}           # channelId -> name
+        self.prev_statuses = {}      # channelId -> (count, error_msg)  — last drawn state
+        self.channel_statuses = {}   # channelId -> (count, error_msg)  — latest fetched state
 
     def load_channels(self):
-        """Load all channels from PhenixRTS API and sort them alphabetically by name"""
         ch_list = self.phenix.get_channels()
         self.channels = {
             ch.get("channelId"): ch.get("name", "No name")
@@ -29,21 +30,109 @@ class ChannelHealthMonitor:
         }
         return len(self.channels)
 
+    def fetch_statuses(self):
+        """Fetch current publisher counts for all channels."""
+        new_statuses = {}
+        for channel_id in self.channels:
+            try:
+                pub_count = self.phenix.get_publishers_count(channel_id)
+                new_statuses[channel_id] = (pub_count, None)
+            except Exception as e:
+                new_statuses[channel_id] = (0, str(e))
+        return new_statuses
+
+    def has_changes(self, new_statuses):
+        """Return True if any channel status differs from the last drawn state."""
+        if new_statuses.keys() != self.prev_statuses.keys():
+            return True
+        for cid, val in new_statuses.items():
+            if self.prev_statuses.get(cid) != val:
+                return True
+        return False
+
+    def draw(self, stdscr, max_y, max_x, now, next_in,
+             COL_CYAN, COL_GREEN, COL_RED, COL_YELLOW,
+             COL_WHITE, COL_HEADER, COL_FOOTER, BOLD):
+        """Full redraw of the screen."""
+        stdscr.erase()
+
+        col_name_w = max(30, max_x - 30)
+        col_pub_w  = 12
+
+        # ── Header ──────────────────────────────────────────────────────────
+        header = f" PhenixRTS Channel Health Monitor  v{VERSION} "
+        stdscr.addstr(0, 0, " " * max_x, COL_HEADER)
+        stdscr.addstr(0, max(0, (max_x - len(header)) // 2), header, COL_HEADER | BOLD)
+
+        # ── Column headers ───────────────────────────────────────────────────
+        row = 2
+        stdscr.addstr(row, 2,  "CHANNEL",    COL_CYAN | BOLD)
+        stdscr.addstr(row, col_name_w,        "PUBLISHERS", COL_CYAN | BOLD)
+        stdscr.addstr(row, col_name_w + col_pub_w, "STATUS", COL_CYAN | BOLD)
+        row += 1
+        stdscr.addstr(row, 1, "─" * (max_x - 2), COL_CYAN)
+        row += 1
+
+        # ── Channel rows ─────────────────────────────────────────────────────
+        for channel_id, name in self.channels.items():
+            if row >= max_y - 2:
+                stdscr.addstr(row, 2, "... terminal too small to show all channels", COL_YELLOW)
+                row += 1
+                break
+
+            status = self.channel_statuses.get(channel_id)
+
+            if status is None:
+                stdscr.addstr(row, 2, name[:col_name_w - 4], COL_WHITE)
+                stdscr.addstr(row, col_name_w, "---",        COL_YELLOW)
+                stdscr.addstr(row, col_name_w + col_pub_w,   "LOADING...", COL_YELLOW)
+
+            elif status[1] is not None:
+                err = status[1][:15]
+                stdscr.addstr(row, 2, name[:col_name_w - 4], COL_WHITE)
+                stdscr.addstr(row, col_name_w, "ERR",        COL_RED | BOLD)
+                stdscr.addstr(row, col_name_w + col_pub_w,   err, COL_RED)
+
+            else:
+                pub_count, _ = status
+                has_source   = pub_count > 0
+                col_status   = COL_GREEN | BOLD if has_source else COL_RED | BOLD
+                stat_str     = ("✓ SOURCE ACTIVE" if has_source else "✗ NO SOURCE")
+
+                stdscr.addstr(row, 2, name[:col_name_w - 4], COL_WHITE)
+                stdscr.addstr(row, col_name_w, str(pub_count), col_status)
+                stdscr.addstr(row, col_name_w + col_pub_w, stat_str, col_status)
+
+            row += 1
+
+        # ── Separator ────────────────────────────────────────────────────────
+        if row < max_y - 2:
+            stdscr.addstr(row, 1, "─" * (max_x - 2), COL_CYAN)
+
+        # ── Footer ───────────────────────────────────────────────────────────
+        ts     = time.strftime("%Y-%m-%d %H:%M:%S")
+        footer = f"  {ts}   Channels: {len(self.channels)}   Next refresh in {next_in}s   [Q] Quit  "
+        footer = footer[:max_x].ljust(max_x)
+        try:
+            stdscr.addstr(max_y - 1, 0, footer, COL_FOOTER | BOLD)
+        except curses.error:
+            pass
+
+        stdscr.refresh()
+
     def run(self, stdscr):
-        # Curses setup
         curses.curs_set(0)
         stdscr.nodelay(True)
         curses.start_color()
         curses.use_default_colors()
 
-        # Color pairs
-        curses.init_pair(1, curses.COLOR_CYAN,    -1)  # Title / header
-        curses.init_pair(2, curses.COLOR_GREEN,   -1)  # Active
-        curses.init_pair(3, curses.COLOR_RED,     -1)  # Inactive / error
-        curses.init_pair(4, curses.COLOR_YELLOW,  -1)  # Warning / loading
-        curses.init_pair(5, curses.COLOR_WHITE,   -1)  # Normal text
-        curses.init_pair(6, curses.COLOR_BLACK,   curses.COLOR_CYAN)   # Header bar
-        curses.init_pair(7, curses.COLOR_BLACK,   curses.COLOR_WHITE)  # Footer bar
+        curses.init_pair(1, curses.COLOR_CYAN,  -1)
+        curses.init_pair(2, curses.COLOR_GREEN, -1)
+        curses.init_pair(3, curses.COLOR_RED,   -1)
+        curses.init_pair(4, curses.COLOR_YELLOW,-1)
+        curses.init_pair(5, curses.COLOR_WHITE, -1)
+        curses.init_pair(6, curses.COLOR_BLACK, curses.COLOR_CYAN)
+        curses.init_pair(7, curses.COLOR_BLACK, curses.COLOR_WHITE)
 
         COL_CYAN   = curses.color_pair(1)
         COL_GREEN  = curses.color_pair(2)
@@ -54,13 +143,16 @@ class ChannelHealthMonitor:
         COL_FOOTER = curses.color_pair(7)
         BOLD       = curses.A_BOLD
 
-        # Load channels once
+        draw_colors = (COL_CYAN, COL_GREEN, COL_RED, COL_YELLOW,
+                       COL_WHITE, COL_HEADER, COL_FOOTER, BOLD)
+
+        # Initial channel load
         stdscr.clear()
         stdscr.addstr(1, 2, "Loading channels...", COL_YELLOW | BOLD)
         stdscr.refresh()
 
         try:
-            count = self.load_channels()
+            self.load_channels()
         except Exception as e:
             stdscr.clear()
             stdscr.addstr(1, 2, f"Error loading channels: {e}", COL_RED | BOLD)
@@ -69,100 +161,51 @@ class ChannelHealthMonitor:
             stdscr.getch()
             return
 
-        last_refresh = 0
-        channel_statuses = {}  # channelId -> (count, error_msg)
+        last_fetch   = 0
+        last_max_yx  = (0, 0)
+        last_next_in = -1
+        dirty        = True   # Force first draw
 
         while True:
-            # Handle input
             key = stdscr.getch()
             if key in (ord('q'), ord('Q'), 27):
                 break
 
-            now = time.time()
-            if now - last_refresh >= self.interval:
-                # Fetch all channel statuses
-                for channel_id in self.channels:
-                    try:
-                        pub_count = self.phenix.get_publishers_count(channel_id)
-                        channel_statuses[channel_id] = (pub_count, None)
-                    except Exception as e:
-                        channel_statuses[channel_id] = (0, str(e))
-                last_refresh = now
+            now     = time.time()
+            max_yx  = stdscr.getmaxyx()
+            next_in = max(0, int(self.interval - (now - last_fetch)))
 
-            # Draw UI
-            stdscr.erase()
-            max_y, max_x = stdscr.getmaxyx()
+            # ── Fetch new data when interval elapsed ─────────────────────────
+            if now - last_fetch >= self.interval:
+                new_statuses = self.fetch_statuses()
 
-            # ── Header bar ──────────────────────────────────────────────────
-            header = f" PhenixRTS Channel Health Monitor  v{VERSION} "
-            stdscr.addstr(0, 0, " " * max_x, COL_HEADER)
-            stdscr.addstr(0, max(0, (max_x - len(header)) // 2), header, COL_HEADER | BOLD)
+                if self.has_changes(new_statuses):
+                    self.channel_statuses = new_statuses
+                    self.prev_statuses    = dict(new_statuses)
+                    dirty = True
 
-            # ── Column headers ───────────────────────────────────────────────
-            col_name_w  = max(30, max_x - 30)
-            col_pub_w   = 12
-            col_stat_w  = 16
+                last_fetch = now
 
-            row = 2
-            stdscr.addstr(row, 2,  "CHANNEL",    COL_CYAN | BOLD)
-            stdscr.addstr(row, col_name_w,        "PUBLISHERS", COL_CYAN | BOLD)
-            stdscr.addstr(row, col_name_w + col_pub_w, "STATUS", COL_CYAN | BOLD)
-            row += 1
-            stdscr.addstr(row, 1, "─" * (max_x - 2), COL_CYAN)
-            row += 1
+            # ── Full redraw only if data changed or terminal resized ──────────
+            if dirty or max_yx != last_max_yx:
+                self.draw(stdscr, *max_yx, now, next_in, *draw_colors)
+                last_max_yx  = max_yx
+                last_next_in = next_in
+                dirty        = False
 
-            # ── Channel rows ─────────────────────────────────────────────────
-            for channel_id, name in self.channels.items():
-                if row >= max_y - 2:
-                    stdscr.addstr(row, 2, f"... and more (terminal too small)", COL_YELLOW)
-                    row += 1
-                    break
+            # ── Lightweight footer-only update for countdown ──────────────────
+            elif next_in != last_next_in:
+                max_y, max_x = max_yx
+                ts     = time.strftime("%Y-%m-%d %H:%M:%S")
+                footer = f"  {ts}   Channels: {len(self.channels)}   Next refresh in {next_in}s   [Q] Quit  "
+                footer = footer[:max_x].ljust(max_x)
+                try:
+                    stdscr.addstr(max_y - 1, 0, footer, COL_FOOTER | BOLD)
+                    stdscr.refresh()
+                except curses.error:
+                    pass
+                last_next_in = next_in
 
-                status = channel_statuses.get(channel_id)
-
-                if status is None:
-                    # Not yet fetched
-                    stdscr.addstr(row, 2, name[:col_name_w - 4], COL_WHITE)
-                    stdscr.addstr(row, col_name_w, "---", COL_YELLOW)
-                    stdscr.addstr(row, col_name_w + col_pub_w, "LOADING...", COL_YELLOW)
-
-                elif status[1] is not None:
-                    # Error
-                    err = status[1][:col_stat_w - 1]
-                    stdscr.addstr(row, 2, name[:col_name_w - 4], COL_WHITE)
-                    stdscr.addstr(row, col_name_w, "ERR", COL_RED | BOLD)
-                    stdscr.addstr(row, col_name_w + col_pub_w, err, COL_RED)
-
-                else:
-                    pub_count, _ = status
-                    has_source = pub_count > 0
-                    count_str  = str(pub_count)
-                    stat_str   = "SOURCE ACTIVE" if has_source else "NO SOURCE"
-                    col_status = COL_GREEN | BOLD if has_source else COL_RED | BOLD
-
-                    stdscr.addstr(row, 2, name[:col_name_w - 4], COL_WHITE)
-                    stdscr.addstr(row, col_name_w, count_str, col_status)
-                    stdscr.addstr(row, col_name_w + col_pub_w,
-                                  ("✓ " if has_source else "✗ ") + stat_str, col_status)
-
-                row += 1
-
-            # ── Separator ────────────────────────────────────────────────────
-            if row < max_y - 2:
-                stdscr.addstr(row, 1, "─" * (max_x - 2), COL_CYAN)
-
-            # ── Footer bar ───────────────────────────────────────────────────
-            ts       = time.strftime("%Y-%m-%d %H:%M:%S")
-            next_in  = max(0, int(self.interval - (now - last_refresh)))
-            footer   = f"  {ts}   Channels: {len(self.channels)}   Next refresh in {next_in}s   [Q] Quit  "
-            footer   = footer[:max_x]
-            footer   = footer.ljust(max_x)
-            try:
-                stdscr.addstr(max_y - 1, 0, footer, COL_FOOTER | BOLD)
-            except curses.error:
-                pass
-
-            stdscr.refresh()
             time.sleep(0.25)
 
 
