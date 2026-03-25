@@ -1,36 +1,35 @@
 class PhenixRTS:
-    """
-    PhenixRTS API client for making requests to the PhenixRTS service.
-    """
+    def __init__(self, app_id: str, password: str):
+        self.app_id = app_id
+        self.password = password
+        self.token = None
 
-    def __init__(self, base_url, api_key):
-        self.base_url = base_url
-        self.api_key = api_key
+    def authenticate(self):
+        # Simulate requesting a Bearer token using AppID and Password
+        # In a real-world scenario, this would involve actual API calls.
+        self.token = f"Bearer {self.app_id}:{self.password}"
+        print(f"Authenticated with token: {self.token}")
 
-    def get(self, endpoint, params=None):
-        import requests
-        headers = {'Authorization': f'Bearer {self.api_key}'}
-        response = requests.get(f'{self.base_url}/{endpoint}', headers=headers, params=params)
-        response.raise_for_status()
-        return response.json()
+    def get(self, url: str):
+        if not self.token:
+            raise Exception("Authentication required. Please call authenticate() first.")
+        # Add code for GET request using self.token
+        print(f"GET request to {url} with token {self.token}")
 
-    def post(self, endpoint, data=None):
-        import requests
-        headers = {'Authorization': f'Bearer {self.api_key}', 'Content-Type': 'application/json'}
-        response = requests.post(f'{self.base_url}/{endpoint}', headers=headers, json=data)
-        response.raise_for_status()
-        return response.json()
+    def post(self, url: str, data: dict):
+        if not self.token:
+            raise Exception("Authentication required. Please call authenticate() first.")
+        # Add code for POST request using self.token
+        print(f"POST request to {url} with data {data} and token {self.token}")
 
-    def put(self, endpoint, data=None):
-        import requests
-        headers = {'Authorization': f'Bearer {self.api_key}', 'Content-Type': 'application/json'}
-        response = requests.put(f'{self.base_url}/{endpoint}', headers=headers, json=data)
-        response.raise_for_status()
-        return response.json()
+    def put(self, url: str, data: dict):
+        if not self.token:
+            raise Exception("Authentication required. Please call authenticate() first.")
+        # Add code for PUT request using self.token
+        print(f"PUT request to {url} with data {data} and token {self.token}")
 
-    def delete(self, endpoint):
-        import requests
-        headers = {'Authorization': f'Bearer {self.api_key}'}
-        response = requests.delete(f'{self.base_url}/{endpoint}', headers=headers)
-        response.raise_for_status()
-        return response.status_code
+    def delete(self, url: str):
+        if not self.token:
+            raise Exception("Authentication required. Please call authenticate() first.")
+        # Add code for DELETE request using self.token
+        print(f"DELETE request to {url} with token {self.token}")
