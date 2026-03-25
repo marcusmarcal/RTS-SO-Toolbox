@@ -10,3 +10,9 @@ logs/
 
 # Ignore environment variables
 .env
+
+# Tests
+test*
+
+# Pycache
+*pycache*
