@@ -79,7 +79,7 @@ class ChannelHealthMonitor:
 
 if __name__ == "__main__":
     try:
-        monitor = ChannelHealthMonitor(interval_seconds=1)
+        monitor = ChannelHealthMonitor(interval_seconds=5)
         monitor.run()
     except KeyboardInterrupt:
         console.print("\n[bold yellow]👋 Monitor stopped by user.[/]")
