@@ -1,38 +1,15 @@
 # PhenixRTS Monitoring System
 
-## Project Overview
-PhenixRTS is a robust system for monitoring real-time data in various applications. This documentation provides a comprehensive guide for setting up, using, and understanding the system.
+## ✅ Nova Funcionalidade: Monitor de Saúde em Tempo Real
 
-## Features
-- Real-time data monitoring
-- Alerts and notifications
-- Data visualization tools
-- Multi-user support
+Agora o sistema monitora **a saúde dos canais ao vivo** usando o endpoint oficial  
+`/pcast/channel/<channelId>/publishers/count`
 
-## Installation Instructions
-1. Clone the repository:
-   ```bash
-   git clone https://github.com/marcusmarcal/RTS-SO-Toolbox.git
-   cd RTS-SO-Toolbox
-   ```
-2. Install dependencies:
-   ```bash
-   pip install -r requirements.txt
-   ```
+### Como usar
 
-## Usage
-1. Start the monitoring system:
-   ```bash
-   python main.py
-   ```
-2. Access the web interface at `http://localhost:5000`
+1. Configure seu `.env` (veja `.env.example`)
+2. Rode o monitor:
 
-## Configuration
-- Configuration settings can be found in the `config.yaml` file.
-- Modify the file to suit your environment.
-
-## Contribution
-Contributions are welcome! Please submit a pull request or raise an issue for any enhancements or concerns.
-
-## License
-This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for more details.
+```bash
+python channel_health_monitor.py
+```
