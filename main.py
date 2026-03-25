@@ -1,19 +1,10 @@
-"""
-RTS-SO-Toolbox - Main entry point for the application
-This is the main entry point for the RTS-SO-Toolbox application.
-"""
+import os
+from dotenv import load_dotenv
 
-from src.config import get_env_variable
-from src.phenix_client import PhenixRTS
-from src.stream_monitor import StreamMonitor
+load_dotenv()
 
-if __name__ == '__main__':
-    print('RTS-SO-Toolbox is running...')
-    
-    # Load configuration from environment variables
-    try:
-        api_key = get_env_variable('PHENIXRTS_API_KEY')
-        api_secret = get_env_variable('PHENIXRTS_API_SECRET')
-        print(f'API Key loaded successfully')
-    except RuntimeError as e:
-        print(f'Error loading configuration: {e}')
+app_id = os.getenv('PHENIXRTS_APP_ID')
+password = os.getenv('PHENIXRTS_PASSWORD')
+
+# Add code to initialize PhenixRTS client with app_id and password
+# client = PhenixRTS(app_id=app_id, password=password)
