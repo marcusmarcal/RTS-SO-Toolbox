@@ -1,25 +1,16 @@
 import os
 import time
-import logging
 from dotenv import load_dotenv
+from rich.console import Console
+from rich.table import Table
+from rich.live import Live
+from rich.panel import Panel
+from rich import box
 from main import PhenixRTS
 
 load_dotenv()
 
-# Configuração de logging com cores
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s | %(levelname)s | %(message)s',
-    datefmt='%H:%M:%S'
-)
-
-# Cores para console
-class Colors:
-    GREEN = '\033[92m'
-    YELLOW = '\033[93m'
-    RED = '\033[91m'
-    RESET = '\033[0m'
-    BOLD = '\033[1m'
+console = Console()
 
 class ChannelHealthMonitor:
     def __init__(self, interval_seconds: int = 8):
@@ -27,60 +18,62 @@ class ChannelHealthMonitor:
         password = os.getenv('PHENIXRTS_PASSWORD')
 
         if not app_id or not password:
-            raise ValueError("❌ PHENIXRTS_APP_ID e PHENIXRTS_PASSWORD não encontrados no .env")
+            console.print("[bold red]❌ PHENIXRTS_APP_ID e PHENIXRTS_PASSWORD não encontrados no .env[/]")
+            raise SystemExit(1)
 
         self.phenix = PhenixRTS(app_id, password)
         self.interval = interval_seconds
-        self.channel_cache = {}  # channelId -> name
-
-        logging.info(f"{Colors.BOLD}🚀 PhenixRTS Health Monitor iniciado{Colors.RESET}")
+        self.channels = {}  # channelId -> name
 
     def load_channels(self):
-        """Carrega todos os canais da API"""
         try:
-            channels = self.phenix.get_channels()
-            self.channel_cache = {ch.get("channelId"): ch.get("name", "Sem nome") for ch in channels}
-            
-            logging.info(f"{Colors.GREEN}✓ Carregados {len(channels)} canais da API{Colors.RESET}")
-            for ch in channels:
-                logging.info(f"   • {ch.get('name')} ({ch.get('channelId')})")
-            print()
+            ch_list = self.phenix.get_channels()
+            self.channels = {ch.get("channelId"): ch.get("name", "Sem nome") for ch in ch_list}
+            console.print(f"[bold green]✓ Carregados {len(self.channels)} canal(is)[/]")
             return True
         except Exception as e:
-            logging.error(f"{Colors.RED}✗ Erro ao carregar canais: {e}{Colors.RESET}")
+            console.print(f"[bold red]✗ Erro ao carregar canais: {e}[/]")
             return False
 
-    def monitor(self):
+    def run(self):
         if not self.load_channels():
-            logging.error("Não foi possível carregar os canais. Encerrando.")
             return
 
-        while True:
-            logging.info(f"{Colors.BOLD}🔍 Verificando saúde de {len(self.channel_cache)} canais...{Colors.RESET}")
+        console.clear()
+        console.print(Panel("[bold cyan]PhenixRTS - Monitor de Saúde em Tempo Real[/]", 
+                           style="bold blue", box=box.ROUNDED))
 
-            for channel_id, name in self.channel_cache.items():
-                try:
-                    health = self.phenix.get_publishers_count(channel_id)
-                    count = health.get("count", 0)
-                    status = health.get("status", "unknown")
+        with Live(console=console, refresh_per_second=4, screen=True) as live:
+            while True:
+                table = Table(title=f"Saúde dos Canais - {time.strftime('%H:%M:%S')}", 
+                             box=box.ROUNDED, show_lines=True)
+                table.add_column("Canal", style="cyan")
+                table.add_column("Publishers", justify="center")
+                table.add_column("Status Source", justify="center")
 
-                    if count > 0:
-                        logging.info(f"{Colors.GREEN}✅ {name} | {count} publisher(s){Colors.RESET}")
-                    else:
-                        logging.warning(f"{Colors.RED}🚨 {name} | 0 publishers | Canal sem ingest!{Colors.RESET}")
+                for channel_id, name in self.channels.items():
+                    try:
+                        count = self.phenix.get_publishers_count(channel_id)
+                        has_source = count > 0
 
-                except Exception as e:
-                    logging.error(f"{Colors.RED}❌ {name} | Erro: {e}{Colors.RESET}")
+                        status_text = "[bold green]✓ SOURCE ATIVA[/]" if has_source else "[bold red]✗ SEM SOURCE[/]"
+                        count_text = f"[bold green]{count}[/]" if has_source else f"[bold red]{count}[/]"
 
-            logging.info(f"{Colors.BOLD}⏳ Aguardando {self.interval} segundos para próxima verificação...{Colors.RESET}\n")
-            time.sleep(self.interval)
+                        table.add_row(name, count_text, status_text)
+
+                    except Exception as e:
+                        table.add_row(name, "[red]ERRO[/]", f"[red]{e}[/]")
+
+                live.update(Panel(table, title="Monitor PhenixRTS", border_style="blue"))
+
+                time.sleep(self.interval)
 
 
 if __name__ == "__main__":
     try:
-        monitor = ChannelHealthMonitor(interval_seconds=8)  # você pode mudar o intervalo aqui
-        monitor.monitor()
+        monitor = ChannelHealthMonitor(interval_seconds=8)
+        monitor.run()
     except KeyboardInterrupt:
-        print("\n\n👋 Monitor encerrado pelo usuário.")
+        console.print("\n[bold yellow]👋 Monitor encerrado pelo usuário.[/]")
     except Exception as e:
-        logging.error(f"{Colors.RED}Erro fatal: {e}{Colors.RESET}")
+        console.print(f"[bold red]Erro fatal: {e}[/]")

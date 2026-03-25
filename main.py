@@ -23,19 +23,6 @@ class PhenixRTS:
             'Accept': 'application/json'
         })
 
-    def authenticate(self):
-        try:
-            response = self.session.get(f'{self.base_url}/pcast/composition')
-            if response.status_code == 200:
-                print('✓ Authentication successful')
-                return True
-            else:
-                print(f'✗ Authentication failed: {response.status_code}')
-                return False
-        except Exception as e:
-            print(f'✗ Authentication error: {e}')
-            return False
-
     def get_channels(self):
         """Retorna todos os canais da conta"""
         try:
@@ -51,8 +38,8 @@ class PhenixRTS:
 
     def get_publishers_count(self, channel_id: str):
         """
-        Verifica a saúde de um canal (número de publishers).
-        Endpoint: /pcast/channel/<urlEncodedChannelId>/publishers/count
+        Verifica número de publishers (ingests/sources).
+        Retorna um número inteiro (0 ou mais).
         """
         encoded_id = quote(channel_id)
         endpoint = f'pcast/channel/{encoded_id}/publishers/count'
@@ -61,15 +48,16 @@ class PhenixRTS:
             response = self.session.get(f'{self.base_url}/{endpoint}')
             
             if response.status_code == 200:
+                # Phenix retorna apenas o número como texto ou int
+                text = response.text.strip()
                 try:
-                    return response.json()
-                except:
-                    # Algumas respostas retornam apenas o número como texto
-                    return {"status": "ok", "count": int(response.text.strip()) if response.text.strip().isdigit() else 0}
+                    return int(text)
+                except ValueError:
+                    return 0
             elif response.status_code == 412:
-                return {"status": "fail", "count": 0, "message": "Fewer publishers than required"}
+                return 0
             else:
                 response.raise_for_status()
-                return response.json()
-        except requests.exceptions.RequestException as e:
-            raise RuntimeError(f'Health check failed for channel {channel_id}: {str(e)}')
+                return 0
+        except Exception as e:
+            raise RuntimeError(f'Health check failed for {channel_id}: {str(e)}')
