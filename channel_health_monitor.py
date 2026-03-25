@@ -6,7 +6,7 @@ from main import PhenixRTS
 
 load_dotenv()
 
-VERSION = "1.4.0"
+VERSION = "1.5.0"
 
 class ChannelHealthMonitor:
     def __init__(self, interval_seconds: int = 5):
@@ -31,7 +31,24 @@ class ChannelHealthMonitor:
         return len(self.channels)
 
     def fetch_statuses(self):
-        """Fetch current publisher counts for all channels."""
+        """Reload channel list and fetch current publisher counts.
+        Returns (new_statuses, channels_changed) where channels_changed
+        is True if any channel was added or removed since last fetch.
+        """
+        # Reload channel list to detect additions / removals
+        try:
+            ch_list = self.phenix.get_channels()
+            new_channels = {
+                ch.get("channelId"): ch.get("name", "No name")
+                for ch in sorted(ch_list, key=lambda x: x.get("name", "No name").lower())
+            }
+        except Exception:
+            new_channels = self.channels  # Keep current list on error
+
+        channels_changed = new_channels.keys() != self.channels.keys()
+        self.channels = new_channels
+
+        # Fetch publisher count for each channel
         new_statuses = {}
         for channel_id in self.channels:
             try:
@@ -39,7 +56,8 @@ class ChannelHealthMonitor:
                 new_statuses[channel_id] = (pub_count, None)
             except Exception as e:
                 new_statuses[channel_id] = (0, str(e))
-        return new_statuses
+
+        return new_statuses, channels_changed
 
     def has_changes(self, new_statuses):
         """Return True if any channel status differs from the last drawn state."""
@@ -177,9 +195,9 @@ class ChannelHealthMonitor:
 
             # ── Fetch new data when interval elapsed ─────────────────────────
             if now - last_fetch >= self.interval:
-                new_statuses = self.fetch_statuses()
+                new_statuses, channels_changed = self.fetch_statuses()
 
-                if self.has_changes(new_statuses):
+                if channels_changed or self.has_changes(new_statuses):
                     self.channel_statuses = new_statuses
                     self.prev_statuses    = dict(new_statuses)
                     dirty = True
